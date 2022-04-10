@@ -37,8 +37,7 @@ write_basic_package_version_file(
 install(
   EXPORT "${PROJECT_NAME}Targets"
   FILE "${PROJECT_NAME}Config.cmake"
-  NAMESPACE simple::
-  DESTINATION lib/cmake/simple
+  DESTINATION lib/cmake/${PROJECT_NAME}
 )
 
 install(DIRECTORY ${PROJECT_SOURCE_DIR}/include/ DESTINATION include)
