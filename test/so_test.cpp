@@ -19,10 +19,11 @@ int main()
 
   using namespace simple;
 
-  optional<S> other_opt = S{};
+  optional<S> other_opt;
 
   auto transformed = other_opt.and_then([](auto& s) { return optional<int>{80}; })
                          .and_then([](auto i) { return optional<std::string>{"Hello"}; })
+                         .or_else([] { return optional<std::string>{std::string()}; })
                          .transform(&std::string::size);
 
   std::cout << "transformed has value: " << transformed.has_value() << std::endl;

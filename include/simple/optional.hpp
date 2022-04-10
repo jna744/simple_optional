@@ -62,6 +62,14 @@ namespace optional_ns
 template <typename T>
 auto declval() noexcept -> std::add_rvalue_reference_t<T>;
 
+template <typename... Ts>
+struct void_impl {
+  using type = void;
+};
+
+template <typename... Ts>
+using void_t = typename void_impl<Ts...>::type;
+
 namespace swappable_impl
 {
 
@@ -258,7 +266,8 @@ struct is_invocable_impl : std::false_type {
 };
 
 template <typename F, typename... Args>
-struct is_invocable_impl<void(invoke_result_t<F, Args...>), F, Args...> : std::true_type {
+struct is_invocable_impl<void_t<decltype(optional_ns::invoke(declval<F>(), declval<Args>()...))>, F, Args...>
+  : std::true_type {
 };
 
 template <typename F, typename... Args>
@@ -301,9 +310,10 @@ union optional_storage_impl<T, false> {
   ~optional_storage_impl() {}
 
   template <typename... Args>
-  void emplace(Args&&... args)
+  T& emplace(Args&&... args)
   {
     new (&value_) T{std::forward<Args>(args)...};
+    return value_;
   }
 
   T& get() & noexcept { return value_; }
@@ -337,9 +347,10 @@ union optional_storage_impl<T, true> {
   // ~optional_storage_impl() = default;
 
   template <typename... Args>
-  constexpr void emplace(Args&&... args)
+  constexpr T& emplace(Args&&... args)
   {
     new (&value_) T{std::forward<Args>(args)...};
+    return value_;
   }
 
   constexpr T& get() & noexcept { return value_; }
@@ -398,6 +409,15 @@ protected:
     initialized_ = false;
   }
 
+  template <typename... Args>
+  T& emplace(Args&&... args)
+  {
+    reset();
+    auto& t = storage_.emplace(std::forward<Args>(args)...);
+    initialized_ = true;
+    return t;
+  }
+
   bool         initialized_;
   storage_type storage_;
 };
@@ -431,6 +451,28 @@ public:
 protected:
 
   constexpr void reset() noexcept { initialized_ = false; }
+
+  template <typename... Args>
+  constexpr T& emplace(Args&&... args) noexcept(std::is_nothrow_constructible<T, Args...>{})
+  {
+    return do_emplace(std::is_nothrow_constructible<T, Args...>{}, std::forward<Args>(args)...);
+  }
+
+  template <typename... Args>
+  constexpr T& do_emplace(std::true_type, Args&&... args) noexcept
+  {
+    initialized_ = true;
+    return storage_.emplace(std::forward<Args>(args)...);
+  }
+
+  template <typename... Args>
+  constexpr T& do_emplace(std::false_type, Args&&... args)
+  {
+    reset();
+    auto& t = storage_.emplace(std::forward<Args>(args)...);
+    initialized_ = true;
+    return t;
+  }
 
   bool         initialized_;
   storage_type storage_;
@@ -520,8 +562,7 @@ struct optional_ca_base_impl<T, true, false> : public optional_cc_base<T> {
         else
           this->reset();
       } else if (other.initialized_) {
-        this->storage_.emplace(other.storage_.get());
-        this->initialized_ = true;
+        this->emplace(other.storage_.get());
       }
     }
     return *this;
@@ -626,8 +667,7 @@ struct optional_ma_base_impl<T, true, false> : public optional_mc_base<T> {
         else
           this->reset();
       } else if (other.initialized_) {
-        this->storage_.emplace(std::move(other.storage_).get());
-        this->initialized_ = true;
+        this->emplace(std::move(other.storage_).get());
       }
     }
     return *this;
@@ -752,8 +792,7 @@ public:
     if (this->initialized_) {
       this->storage_.get() = std::forward<U>(value);
     } else {
-      this->storage_.emplace(std::forward<U>(value));
-      this->initialized_ = true;
+      emplace(std::forward<U>(value));
     }
     return *this;
   }
@@ -772,8 +811,7 @@ public:
       else
         this->reset();
     } else if (other.initialized_) {
-      this->storage_.emplace(other.storage_.get());
-      this->initialized_ = true;
+      emplace(other.storage_.get());
     }
     return *this;
   }
@@ -792,8 +830,7 @@ public:
       else
         this->reset();
     } else if (other.initialized_) {
-      this->storage_.emplace(std::move(other.storage_).get());
-      this->initialized_ = true;
+      emplace(std::move(other.storage_).get());
     }
     return *this;
   }
@@ -997,14 +1034,7 @@ public:
 
   using base_type::reset;
 
-  template <typename... Args>
-  constexpr T& emplace(Args&&... args) noexcept(std::is_nothrow_constructible<T, Args...>::value)
-  {
-    reset();
-    this->storage_.emplace(std::forward<Args>(args)...);
-    this->initialized_ = true;
-    return **this;
-  }
+  using base_type::emplace;
 
   template <
       typename U,
@@ -1013,10 +1043,7 @@ public:
   constexpr T& emplace(std::initializer_list<U> ilist, Args&&... args) noexcept(
       std::is_nothrow_constructible<T, std::initializer_list<U>&, Args...>::value)
   {
-    reset();
-    this->storage_.emplace(ilist, std::forward<Args>(args)...);
-    this->initialized_ = true;
-    return **this;
+    base_type::emplace(ilist, std::forward<Args>(args)...);
   }
 };
 
