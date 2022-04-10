@@ -1300,4 +1300,8 @@ template <typename T>
 struct std::hash<simple::optional<T>> : simple::optional_ns::hash<T> {
 };
 
+#undef SOPT_INLINE_17
+#undef SOPT_INLINE_14
+#undef SOPT_INLINE
+
 #endif  // SIMPLE_OPTIONAL_HPP
