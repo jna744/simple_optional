@@ -12,11 +12,6 @@ struct S {
   double f;
 };
 
-simple::optional<S> make_optional(unsigned char i)
-{
-  return S{};
-}
-
 #include <string>
 
 int main()
@@ -24,18 +19,12 @@ int main()
 
   using namespace simple;
 
-  S s;
+  optional<S> other_opt = S{};
 
-  auto& f = optional_ns::invoke(&S::f, s);
-
-  auto        opt = make_optional(35);
-  optional<S> other_opt;
-
-  auto transformed = other_opt.and_then([](auto& s) { return optional<int>{}; })
+  auto transformed = other_opt.and_then([](auto& s) { return optional<int>{80}; })
                          .and_then([](auto i) { return optional<std::string>{"Hello"}; })
-                         .transform([](auto str) { return 10; });
+                         .transform(&std::string::size);
 
-  other_opt = opt;
-  std::cout << "opt has value: " << opt.has_value() << std::endl;
-  std::cout << "other_opt has value: " << other_opt.has_value() << std::endl;
+  std::cout << "transformed has value: " << transformed.has_value() << std::endl;
+  std::cout << "transformed value: " << transformed.value_or(0) << std::endl;
 }

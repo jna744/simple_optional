@@ -216,17 +216,19 @@ using invoke_member_tag = std::conditional_t<
     invoke_mem_ptr_tag<C, std::decay_t<O>>>;
 
 template <typename C, typename P, typename O, typename... Args>
-inline constexpr decltype(auto) invoke_member_impl(P C::*ptr, O&& o, Args&&... args) noexcept(
+inline constexpr decltype(auto) invoke_impl(std::true_type, P C::*ptr, O&& o, Args&&... args) noexcept(
     noexcept(invoke_mem_ptr(invoke_member_tag<C, P, O>{}, ptr, std::forward<O>(o), std::forward<Args>(args)...)))
 {
-  return invoke_mem_ptr(invoke_member_tag<C, P, O>{}, ptr, std::forward<O>(o), std::forward<Args>(args)...);
-}
-
-template <typename F, typename... Args>
-inline constexpr decltype(auto) invoke_impl(std::true_type, F&& fn, Args&&... args) noexcept(
-    noexcept(invoke_member_impl(std::forward<F>(fn), std::forward<Args>(args)...)))
-{
-  return invoke_member_impl(std::forward<F>(fn), std::forward<Args>(args)...);
+  using member_tag = invoke_member_tag<C, P, O>;
+  static_assert(
+      m_any_of<
+          std::is_same<member_tag, invoke_mem_ptr_tag_1>,
+          std::is_same<member_tag, invoke_mem_ptr_tag_2>,
+          std::is_same<member_tag, invoke_mem_ptr_tag_3>>::value
+          ? sizeof...(Args) == 0
+          : true,
+      "bad invoke");
+  return invoke_mem_ptr(member_tag{}, ptr, std::forward<O>(o), std::forward<Args>(args)...);
 }
 
 template <typename F, typename... Args>
@@ -287,7 +289,12 @@ union optional_storage_impl<T, false> {
   optional_storage_impl(nullopt_t) : null_{} {}
 
   template <typename... Args>
-  optional_storage_impl(Args&&... args) : value_{std::forward<Args>(args)...}
+  optional_storage_impl(Args&&... args) : value_(std::forward<Args>(args)...)
+  {
+  }
+
+  template <typename Arg>
+  optional_storage_impl(Arg&& arg) : value_(std::forward<Arg>(arg))
   {
   }
 
@@ -318,6 +325,11 @@ union optional_storage_impl<T, true> {
 
   template <typename... Args>
   explicit constexpr optional_storage_impl(Args&&... args) : value_{std::forward<Args>(args)...}
+  {
+  }
+
+  template <typename Arg>
+  constexpr optional_storage_impl(Arg&& arg) : value_(std::forward<Arg>(arg))
   {
   }
 
@@ -356,7 +368,7 @@ class optional_base_impl<T, false>
 
 public:
 
-  optional_base_impl() noexcept = default;
+  optional_base_impl() noexcept : initialized_{false}, storage_{nullopt} {}
 
   optional_base_impl(nullopt_t) noexcept : optional_base_impl{} {}
 
@@ -386,8 +398,8 @@ protected:
     initialized_ = false;
   }
 
-  bool         initialized_ = false;
-  storage_type storage_ = nullopt_t{};
+  bool         initialized_;
+  storage_type storage_;
 };
 
 template <typename T>
@@ -398,7 +410,7 @@ class optional_base_impl<T, true>
 
 public:
 
-  constexpr optional_base_impl() noexcept = default;
+  constexpr optional_base_impl() noexcept : initialized_{false}, storage_{nullopt} {}
 
   constexpr optional_base_impl(nullopt_t) noexcept : optional_base_impl{} {}
 
@@ -420,8 +432,8 @@ protected:
 
   constexpr void reset() noexcept { initialized_ = false; }
 
-  bool         initialized_ = false;
-  storage_type storage_ = nullopt_t{};
+  bool         initialized_;
+  storage_type storage_;
 };
 
 template <typename T, bool, bool>
@@ -1207,6 +1219,29 @@ inline constexpr bool operator>=(U const& lhs, optional<T> const& rhs)
 {
   return bool(rhs) ? lhs >= *rhs : true;
 }
+
+template <typename T>
+constexpr optional<std::decay_t<T>> make_optional(T&& value)
+{
+  return std::forward<T>(value);
+}
+
+template <typename T, typename... Args>
+constexpr optional<std::decay_t<T>> make_optional(Args&&... args)
+{
+  return optional<std::decay_t<T>>{in_place, std::forward<Args>(args)...};
+}
+
+template <typename T, typename U, typename... Args>
+constexpr optional<std::decay_t<T>> make_optional(std::initializer_list<U> il, Args&&... args)
+{
+  return optional<std::decay_t<T>>{in_place, il, std::forward<Args>(args)...};
+}
+
+#if defined(__cpp_deduction_guides)
+template <typename T>
+optional(T) -> optional<T>;
+#endif
 
 namespace optional_ns
 {
