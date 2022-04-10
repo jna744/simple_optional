@@ -19,3 +19,26 @@ target_include_directories(
 if(BUILD_TESTING AND SO_PRIMARY_PROJECT)
   add_subdirectory(test)
 endif()
+
+install(
+  TARGETS ${PROJECT_NAME}
+  EXPORT "${PROJECT_NAME}Targets"
+  PUBLIC_HEADER DESTINATION include
+)
+
+include(CMakePackageConfigHelpers)
+
+write_basic_package_version_file(
+  "${PROJECT_NAME}ConfigVersion.cmake"
+  VERSION ${PACKAGE_VERSION}
+  COMPATIBILITY AnyNewerVersion
+)
+
+install(
+  EXPORT "${PROJECT_NAME}Targets"
+  FILE "${PROJECT_NAME}Config.cmake"
+  NAMESPACE simple::
+  DESTINATION lib/cmake/simple
+)
+
+install(DIRECTORY ${PROJECT_SOURCE_DIR}/include/ DESTINATION include)
